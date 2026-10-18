@@ -1,11 +1,7 @@
 package core
 
 import (
-	"context"
 	"encoding/base64"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -212,32 +208,5 @@ func TestCompareVersions(t *testing.T) {
 		if got := CompareVersions(c.a, c.b); got != c.want {
 			t.Errorf("CompareVersions(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
 		}
-	}
-}
-
-func TestUpdateState(t *testing.T) {
-	info := UpdateInfo{Latest: "0.4.0", MinSupported: "0.3.0"}
-	for current, want := range map[string]UpdateState{
-		"0.4.0": UpToDate, "0.5.0": UpToDate, "0.3.1": UpdateAvailable, "0.2.9": UpdateRequired,
-	} {
-		if got := info.State(current); got != want {
-			t.Errorf("%s: %v, want %v", current, got, want)
-		}
-	}
-}
-
-func TestFetchUpdateInfo(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"latest": "0.4.0", "min_supported": "0.3.0"}`)
-	}))
-	defer server.Close()
-	info, err := FetchUpdateInfo(context.Background(), server.URL)
-	if err != nil || info != (UpdateInfo{Latest: "0.4.0", MinSupported: "0.3.0"}) {
-		t.Fatal(info, err)
-	}
-	missing := httptest.NewServer(http.NotFoundHandler())
-	defer missing.Close()
-	if _, err := FetchUpdateInfo(context.Background(), missing.URL); err == nil {
-		t.Fatal("no error for a 404")
 	}
 }

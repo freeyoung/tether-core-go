@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"testing"
 )
@@ -208,5 +209,34 @@ func TestCompareVersions(t *testing.T) {
 		if got := CompareVersions(c.a, c.b); got != c.want {
 			t.Errorf("CompareVersions(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
 		}
+	}
+}
+
+func TestEngineVersionOf(t *testing.T) {
+	dep := func(version string, replace *debug.Module) *debug.BuildInfo {
+		return &debug.BuildInfo{
+			Main: debug.Module{Path: "tetherandroid"},
+			Deps: []*debug.Module{{Path: "golang.org/x/net", Version: "v0.61.0"}, {Path: modulePath, Version: version, Replace: replace}},
+		}
+	}
+	for name, c := range map[string]struct {
+		bi   *debug.BuildInfo
+		want string
+	}{
+		"a release":           {dep("v0.5.0", nil), "0.5.0"},
+		"a pseudo-version":    {dep("v0.5.1-0.20261018090000-abcdef123456", nil), "0.5.1-0.20261018090000-abcdef123456"},
+		"a local copy":        {dep("v0.5.0", &debug.Module{Path: "../tether-core-go"}), devVersion},
+		"another version":     {dep("v0.5.0", &debug.Module{Path: modulePath, Version: "v0.5.2"}), "0.5.2"},
+		"the module itself":   {&debug.BuildInfo{Main: debug.Module{Path: modulePath, Version: "(devel)"}}, devVersion},
+		"a tool at a version": {&debug.BuildInfo{Main: debug.Module{Path: modulePath, Version: "v0.5.0"}}, "0.5.0"},
+		"without this module": {&debug.BuildInfo{Main: debug.Module{Path: "other"}}, devVersion},
+	} {
+		if got := engineVersionOf(c.bi); got != c.want {
+			t.Errorf("%s: %q, want %q", name, got, c.want)
+		}
+	}
+	// A pseudo-version comes before the release it leads to.
+	if CompareVersions("0.5.1-0.20261018090000-abcdef123456", "0.5.1") >= 0 {
+		t.Error("a pseudo-version sorts after its release")
 	}
 }

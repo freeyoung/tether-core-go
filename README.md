@@ -20,11 +20,7 @@ The app gives the engine three things, all in `core/ports.go`:
 - `Discovery`: DNS-SD, to publish `_tether._tcp` and find the other devices. `Browser` in `core/mdns.go` finds them on any OS.
 - `Delegate`: the user interface, for pairing prompts, files and links.
 
-The app sets its version and the oldest peer version it syncs with at build time:
-
-```bash
-go build -ldflags "-X github.com/freeyoung/tether-core-go/core.Version=0.4.0 -X github.com/freeyoung/tether-core-go/core.MinPeerVersion=0.0.0"
-```
+The engine names its own version in hello: the version of this module in the build of the app, from the build information (`core.EngineVersion()`). `core.MinPeerVersion` is the oldest engine version that it syncs with. A release of the engine raises it when older engines must no longer sync, for example after a security fix. The app sets neither: its own version is for its own user interface and updates.
 
 [docs/protocol.md](docs/protocol.md) lists the rules that the engine follows, so that several computers sync without loops.
 

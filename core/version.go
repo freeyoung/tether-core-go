@@ -1,23 +1,65 @@
 package core
 
 import (
+	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 )
 
-// The apps set these with -ldflags -X: Version is the version of the app, and
-// MinPeerVersion the oldest version of a peer that it syncs with.
-var (
-	Version        = "0.0.0-dev"
-	MinPeerVersion = "0.0.0"
-)
+// modulePath is this module, as the build information of an app names it.
+const modulePath = "github.com/freeyoung/tether-core-go"
 
-// versionFeature names the app and its version in hello. Every app with this
-// engine sends it under the name of the first one, so that they know each
-// other. tetherd and the iPhone app ignore features they do not know.
+const devVersion = "0.0.0-dev"
+
+// EngineVersion is the version of this module in the build of the app, such
+// as "0.5.0", or 0.0.0-dev for a build from a local copy. The engine names it
+// in hello, so that peers can refuse an engine that is too old. The version
+// of the app is the app's own business.
+var EngineVersion = sync.OnceValue(func() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return devVersion
+	}
+	return engineVersionOf(bi)
+})
+
+// engineVersionOf finds this module in the build information: as a
+// dependency of an app, or as the main module of its tools and tests.
+func engineVersionOf(bi *debug.BuildInfo) string {
+	m := &bi.Main
+	for _, d := range bi.Deps {
+		if d.Path == modulePath {
+			m = d
+			break
+		}
+	}
+	if m.Path != modulePath {
+		return devVersion
+	}
+	// A replace with a local copy has no version.
+	if m.Replace != nil {
+		m = m.Replace
+	}
+	v := strings.TrimPrefix(m.Version, "v")
+	if v == "" || v == "(devel)" {
+		return devVersion
+	}
+	return v
+}
+
+// MinPeerVersion is the oldest engine version that this engine syncs with.
+// A release of the engine raises it when older engines must no longer sync,
+// for example after a security fix. 0.0.0 means none.
+var MinPeerVersion = "0.0.0"
+
+// versionFeature names the engine and its version in hello. Every app with
+// this engine sends it, under the name that the first app gave it, so that
+// older peers still know it. tetherd and the iPhone app ignore features they
+// do not know.
 const versionFeature = "tether-desktop/"
 
-// peerTooOld tells whether a peer's version is below MinPeerVersion. The
+// peerTooOld tells whether a peer's engine is below MinPeerVersion. The
 // minimum 0.0.0 means none, so that builds without a release version
 // (0.0.0-dev) still work with each other.
 func peerTooOld(version string) bool {
@@ -25,11 +67,11 @@ func peerTooOld(version string) bool {
 }
 
 func helloFeatures() []string {
-	return append(append([]string{}, features...), versionFeature+Version)
+	return append(append([]string{}, features...), versionFeature+EngineVersion())
 }
 
-// peerVersion returns the version in the hello of a peer with this engine, or
-// false for a peer that names none (tetherd, the iPhone app).
+// peerVersion returns the engine version in the hello of a peer with this
+// engine, or false for a peer that names none (tetherd, the iPhone app).
 func peerVersion(features []string) (string, bool) {
 	for _, f := range features {
 		if v, ok := strings.CutPrefix(f, versionFeature); ok {

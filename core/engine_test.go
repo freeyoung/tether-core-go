@@ -83,7 +83,7 @@ func TestHelloIsAnsweredOnceAndAnnouncesImages(t *testing.T) {
 	n.engine.Approve(p.identity.Fingerprint)
 	p.expect("pair_accepted")
 	p.send(Hello("clipboard_image"))
-	if m := p.expect("hello"); !slices.Equal(m.Features, []string{"clipboard_image", "tether-desktop/" + Version}) {
+	if m := p.expect("hello"); !slices.Equal(m.Features, []string{"clipboard_image", "tether-desktop/" + EngineVersion()}) {
 		t.Fatal(m.Features)
 	}
 	p.send(Hello("clipboard_image"))
@@ -599,11 +599,11 @@ func mustAtoi(s string) int {
 	return n
 }
 
-// A Tether Desktop older than MinPeerVersion pairs, but every session with
-// it closes at its hello, and the app is told.
+// A peer whose engine is older than MinPeerVersion pairs, but every session
+// with it closes at its hello, and the app is told.
 func TestOutdatedPeerIsClosed(t *testing.T) {
 	before := MinPeerVersion
-	MinPeerVersion = "99.0.0" // higher than this build's Version
+	MinPeerVersion = "99.0.0" // higher than the engine of this build
 	t.Cleanup(func() { MinPeerVersion = before })
 	n := computers(t, "Mac", "Windows")
 	n[0].engine.PairWithComputer("127.0.0.1", n[1].port)

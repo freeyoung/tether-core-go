@@ -90,6 +90,9 @@ type pending struct {
 	name    string
 	session string
 	created time.Time
+	// What the peer was when it asked. Its session may be gone by the
+	// time the user answers.
+	kind PeerKind
 }
 
 // Engine is the desktop side of the Tether protocol: it listens and
@@ -229,7 +232,7 @@ func (e *Engine) Approve(fp string) {
 		if !ok {
 			return
 		}
-		kind := e.kindOf(fp)
+		kind := e.kindOfRequest(fp, request)
 		delete(e.pending, fp)
 		e.knownHosts.Set(fp, KnownHost{Name: request.name, Kind: kind})
 		e.log(fmt.Sprintf("paired with %s as %s", request.name, kind))
@@ -723,7 +726,7 @@ func (e *Engine) askToPair(fp, name string, s *session) {
 		kept = e.pending[fp].name
 	}
 	created := time.Now()
-	e.pending[fp] = pending{name: kept, session: s.conn.ID, created: created}
+	e.pending[fp] = pending{name: kept, session: s.conn.ID, created: created, kind: e.kindOf(fp)}
 	// A request nobody answers lapses after 10 minutes.
 	e.queue.PostAfter(10*time.Minute, func() {
 		if p, ok := e.pending[fp]; ok && p.created.Equal(created) {
@@ -761,6 +764,21 @@ func (e *Engine) kindOf(fp string) PeerKind {
 		return Computer
 	}
 	return Phone
+}
+
+// kindOfRequest is kindOf for a peer that asked to pair. Without a session,
+// kindOf can only guess phone, so then it returns the kind that the peer had
+// when it asked.
+func (e *Engine) kindOfRequest(fp string, p pending) PeerKind {
+	for _, s := range e.sessions {
+		if s.fp() == fp {
+			return e.kindOf(fp)
+		}
+	}
+	if p.kind != "" {
+		return p.kind
+	}
+	return e.kindOf(fp)
 }
 
 func (e *Engine) receivedWhilePairingOut(m Message, s *session) {
@@ -1135,7 +1153,7 @@ func (e *Engine) makeSnapshot() Snapshot {
 		return strings.ToLower(snap.Peers[i].Name) < strings.ToLower(snap.Peers[j].Name)
 	})
 	for fp, p := range e.pending {
-		snap.Pending = append(snap.Pending, PairingRequest{Fingerprint: fp, Name: p.name, SuggestedKind: e.kindOf(fp)})
+		snap.Pending = append(snap.Pending, PairingRequest{Fingerprint: fp, Name: p.name, SuggestedKind: e.kindOfRequest(fp, p)})
 	}
 	sort.Slice(snap.Pending, func(i, j int) bool { return snap.Pending[i].Name < snap.Pending[j].Name })
 	for fp, d := range e.discovered {

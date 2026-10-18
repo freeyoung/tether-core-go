@@ -380,6 +380,38 @@ func TestCertificateTellsAPhoneFromAComputer(t *testing.T) {
 	}
 }
 
+// The user may approve a request after the peer has gone. The kind comes
+// from the certificate the peer had when it asked, not from a guess.
+func TestKindOfARequestOutlivesItsSession(t *testing.T) {
+	n := newNode(t, "Phone")
+	p := newPeer(t, computerCertName)
+	p.connect(n.port, true)
+	p.send(PairRequest("linux-pc"))
+	p.expect("pair_pending")
+	if !eventually(5*time.Second, func() bool { return n.delegate.requestCount() == 1 }) {
+		t.Fatal("no request")
+	}
+	p.disconnect()
+	if !eventually(5*time.Second, func() bool { return !p.ready.Load() }) {
+		t.Fatal("still connected")
+	}
+	// Let the engine see the close.
+	time.Sleep(300 * time.Millisecond)
+	if len(n.engine.SnapshotNow().Pending) != 1 {
+		t.Fatal("the request is gone")
+	}
+	if k := n.engine.SnapshotNow().Pending[0].SuggestedKind; k != Computer {
+		t.Fatalf("pending kind %s, want computer", k)
+	}
+	n.engine.Approve(p.identity.Fingerprint)
+	if !eventually(5*time.Second, func() bool { return len(n.engine.SnapshotNow().Peers) == 1 }) {
+		t.Fatal("not paired")
+	}
+	if k := n.engine.SnapshotNow().Peers[0].Kind; k != Computer {
+		t.Fatalf("paired as %s, want computer", k)
+	}
+}
+
 // A pairing from before the certificate rule, with the wrong kind, is
 // corrected when the peer connects again.
 func TestWrongKindIsCorrectedOnConnect(t *testing.T) {

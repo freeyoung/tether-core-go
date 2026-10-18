@@ -1,6 +1,6 @@
 # tether-core-go
 
-The engine of [Tether Desktop](https://github.com/freeyoung/tether-desktop) and Tether for Android: the computer side of the [Tether](https://github.com/zackb/tether) protocol, in Go. It does TLS, pairing, sessions, clipboard sync and files, and has no platform code, so its tests run on any OS.
+The engine of [Tether Desktop](https://github.com/freeyoung/tether-desktop) and [Tether for Android](https://github.com/freeyoung/tether-android): the computer side of the [Tether](https://github.com/zackb/tether) protocol, in Go. It does TLS, pairing, sessions, clipboard sync and files, and has no platform code, so its tests run on any OS.
 
 The engine started in Tether Desktop. It is a module of its own now that more than one app uses it.
 

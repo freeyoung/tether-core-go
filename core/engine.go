@@ -861,6 +861,8 @@ func (e *Engine) receivedPaired(m Message, s *session) {
 			c.Send(Hello(e.helloFeatures()...), nil)
 		}
 		e.startMessageSync(s)
+		// The features show in the state, such as GivesMessages.
+		e.notifyState()
 	case "clipboard_set", "clipboard_updated":
 		// Phones never send clipboard_updated; tetherd does.
 		if m.Command == "clipboard_updated" && s.kind == Phone {
@@ -1161,15 +1163,16 @@ func (e *Engine) answerClipboardGet(s *session) {
 // MARK: - Helpers
 
 func (e *Engine) makeSnapshot() Snapshot {
-	connected := map[string]bool{}
+	connected, gives := map[string]bool{}, map[string]bool{}
 	for _, s := range e.sessions {
 		if s.state == paired && !s.conn.Closed {
 			connected[s.fp()] = true
+			gives[s.fp()] = gives[s.fp()] || s.peerFeatures[MessageSourceFeature]
 		}
 	}
 	snap := Snapshot{Fingerprint: e.Identity.Fingerprint, Listening: e.listening}
 	for fp, host := range e.knownHosts.All() {
-		snap.Peers = append(snap.Peers, PeerState{Fingerprint: fp, Name: host.Name, Kind: host.Kind, Connected: connected[fp]})
+		snap.Peers = append(snap.Peers, PeerState{Fingerprint: fp, Name: host.Name, Kind: host.Kind, Connected: connected[fp], GivesMessages: gives[fp]})
 	}
 	sort.Slice(snap.Peers, func(i, j int) bool {
 		return strings.ToLower(snap.Peers[i].Name) < strings.ToLower(snap.Peers[j].Name)

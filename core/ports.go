@@ -136,6 +136,9 @@ type PeerState struct {
 	Name        string
 	Kind        PeerKind
 	Connected   bool
+	// GivesMessages: connected, and gives its text messages ("sms_source"
+	// in hello).
+	GivesMessages bool
 }
 
 type TransferState struct {

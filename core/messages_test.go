@@ -49,6 +49,17 @@ func TestMessagesSyncInBatchesAndOnChange(t *testing.T) {
 		n.delegate.setAutoApprove(true)
 	}
 	pairComputers(t, phone, mac)
+	givesMessages := func(n, other *testNode) bool {
+		for _, p := range n.engine.SnapshotNow().Peers {
+			if p.Fingerprint == other.engine.Identity.Fingerprint {
+				return p.GivesMessages
+			}
+		}
+		return false
+	}
+	if !eventually(5*time.Second, func() bool { return givesMessages(mac, phone) }) || givesMessages(phone, mac) {
+		t.Fatal("GivesMessages")
+	}
 	store := mac.engine.Messages()
 	if !eventually(5*time.Second, func() bool { return len(store.Thread(phone.engine.Identity.Fingerprint, 1)) == 5 }) {
 		t.Fatal(store.Conversations(""))
@@ -83,7 +94,7 @@ func TestMessagesGoOnlyToComputersThatKeepThem(t *testing.T) {
 	}
 	pairComputers(t, phone, linux)
 	time.Sleep(300 * time.Millisecond)
-	if asked || linux.engine.Messages() != nil {
+	if asked || linux.engine.Messages() != nil || !linux.engine.SnapshotNow().Peers[0].GivesMessages {
 		t.Fatal("messages without the features")
 	}
 }

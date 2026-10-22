@@ -33,8 +33,11 @@ type Config struct {
 	Port             int
 	// How long a pairing request to a computer waits for its user.
 	PairingTimeout time.Duration
-	Protector      SecretProtector
-	MarkDownloaded func(path string)
+	// ShowNotifications: the app shows the notifications of Android phones.
+	// The engine announces it in hello, and only then do phones send them.
+	ShowNotifications bool
+	Protector         SecretProtector
+	MarkDownloaded    func(path string)
 	// Never given clipboard or file content.
 	Log func(string)
 }
@@ -613,7 +616,7 @@ func (e *Engine) promote(s *session, kind PeerKind, name string) {
 	}
 	if kind == Computer && !s.helloSent {
 		s.helloSent = true
-		s.conn.Send(Hello(helloFeatures()...), nil)
+		s.conn.Send(Hello(e.helloFeatures()...), nil)
 	}
 	e.log("session up: " + s.conn.String())
 	e.notifyState()
@@ -841,7 +844,7 @@ func (e *Engine) receivedPaired(m Message, s *session) {
 		// Answer a greeting once. A hello after ours is the answer to it.
 		if !s.helloSent {
 			s.helloSent = true
-			c.Send(Hello(helloFeatures()...), nil)
+			c.Send(Hello(e.helloFeatures()...), nil)
 		}
 	case "clipboard_set", "clipboard_updated":
 		// Phones never send clipboard_updated; tetherd does.
@@ -890,6 +893,8 @@ func (e *Engine) receivedPaired(m Message, s *session) {
 			}
 			e.finishSend(s, s.sending, false, reason)
 		}
+	case "notification_posted", "notification_removed":
+		e.receivedNotification(m, s)
 	case "pair_request":
 		// Already pinned: the phone missed our pair_accepted.
 		c.Send(PairAccepted(), nil)
@@ -912,7 +917,7 @@ func (e *Engine) reclassifyAsComputer(s *session) {
 	s.kind = Computer
 	if !s.helloSent {
 		s.helloSent = true
-		s.conn.Send(Hello(helloFeatures()...), nil)
+		s.conn.Send(Hello(e.helloFeatures()...), nil)
 	}
 	e.notifyState()
 }

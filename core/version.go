@@ -66,8 +66,12 @@ func peerTooOld(version string) bool {
 	return CompareVersions(MinPeerVersion, "0.0.0") > 0 && CompareVersions(version, MinPeerVersion) < 0
 }
 
-func helloFeatures() []string {
-	return append(append([]string{}, features...), versionFeature+EngineVersion())
+func (e *Engine) helloFeatures() []string {
+	list := append([]string{}, features...)
+	if e.Config.ShowNotifications {
+		list = append(list, NotificationsFeature)
+	}
+	return append(list, versionFeature+EngineVersion())
 }
 
 // peerVersion returns the engine version in the hello of a peer with this

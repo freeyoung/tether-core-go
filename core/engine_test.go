@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // The engine against a client that behaves like the iPhone app.
@@ -663,5 +664,71 @@ func TestSendFilesToAComputerInOrder(t *testing.T) {
 	}
 	if info, err := os.Stat(filepath.Join(n[1].downloads(), "empty.txt")); err != nil || info.Size() != 0 {
 		t.Fatal("empty.txt", err)
+	}
+}
+
+// showsNotifications tells whether n knows from o's hello that o shows them.
+func (n *testNode) showsNotifications(o *testNode) bool {
+	var shows bool
+	n.engine.queue.Run(func() {
+		for _, s := range n.engine.sessionList() {
+			if s.fp() == o.engine.Identity.Fingerprint && s.peerFeatures[NotificationsFeature] {
+				shows = true
+			}
+		}
+	}, time.Second)
+	return shows
+}
+
+func TestNotificationsGoOnlyToPeersThatShowThem(t *testing.T) {
+	mac := newNode(t, "Mac", func(c *Config) { c.ShowNotifications = true })
+	linux := newNode(t, "Linux")
+	android := newNode(t, "Android")
+	for _, n := range []*testNode{mac, linux, android} {
+		n.delegate.setAutoApprove(true)
+	}
+	pairComputers(t, android, mac)
+	pairComputers(t, android, linux)
+	if !eventually(5*time.Second, func() bool { return android.showsNotifications(mac) }) {
+		t.Fatal("the mac did not announce notifications")
+	}
+	if android.showsNotifications(linux) {
+		t.Fatal("linux announced notifications")
+	}
+
+	long := strings.Repeat("é", maxNotificationText) // 2 bytes each
+	android.engine.PostNotification(Notification{ID: "0|com.whatsapp|1", App: "com.whatsapp", AppName: "WhatsApp",
+		Title: "Alice", Text: long, Time: 1792650000000})
+	android.engine.PostNotification(Notification{ID: "", Title: "no ID"})
+	android.engine.RemoveNotification("0|com.whatsapp|1")
+	if !eventually(5*time.Second, func() bool { _, removed := mac.delegate.notifications(); return len(removed) == 1 }) {
+		t.Fatal("no removal")
+	}
+	posted, removed := mac.delegate.notifications()
+	if len(posted) != 1 || removed[0] != "0|com.whatsapp|1" {
+		t.Fatal(posted, removed)
+	}
+	n := posted[0]
+	if n.ID != "0|com.whatsapp|1" || n.App != "com.whatsapp" || n.AppName != "WhatsApp" || n.Title != "Alice" ||
+		n.Time != 1792650000000 || n.PeerFingerprint != android.engine.Identity.Fingerprint || n.PeerName != "Android" {
+		t.Fatalf("%+v", n)
+	}
+	if len(n.Text) != maxNotificationText || !utf8.ValidString(n.Text) {
+		t.Fatal("text not cut on a character boundary:", len(n.Text))
+	}
+	time.Sleep(300 * time.Millisecond)
+	if posted, removed := linux.delegate.notifications(); len(posted)+len(removed) != 0 {
+		t.Fatal("linux got notifications")
+	}
+}
+
+// A peer that sends notifications although we never announced them is ignored.
+func TestNotificationsAreIgnoredWithoutTheFeature(t *testing.T) {
+	n, p := phoneSetup(t)
+	p.pair(n)
+	p.send(Message{Command: "notification_posted", NotificationID: "1", Title: "hi"})
+	time.Sleep(300 * time.Millisecond)
+	if posted, _ := n.delegate.notifications(); len(posted) != 0 {
+		t.Fatal(posted)
 	}
 }

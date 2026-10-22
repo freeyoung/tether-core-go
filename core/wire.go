@@ -28,6 +28,12 @@ type Message struct {
 	Source     string   `json:"source,omitempty"`
 	Status     string   `json:"status,omitempty"`
 	Message    string   `json:"message,omitempty"`
+	// notification_posted and notification_removed. The text is in Content.
+	NotificationID string `json:"notification_id,omitempty"`
+	App            string `json:"app,omitempty"`
+	AppName        string `json:"app_name,omitempty"`
+	Title          string `json:"title,omitempty"`
+	Time           *int64 `json:"time,omitempty"`
 }
 
 func (m Message) content() string {

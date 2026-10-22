@@ -65,6 +65,8 @@ type recordingDelegate struct {
 	sent        []sent
 	autoApprove bool
 	outdated    []string
+	posted      []Notification
+	removed     []string
 	engine      *Engine
 }
 
@@ -104,6 +106,22 @@ func (d *recordingDelegate) PeerOutdated(name, version string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.outdated = append(d.outdated, name+" "+version)
+}
+
+func (d *recordingDelegate) NotificationPosted(n Notification) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.posted = append(d.posted, n)
+}
+func (d *recordingDelegate) NotificationRemoved(fp, id string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.removed = append(d.removed, id)
+}
+func (d *recordingDelegate) notifications() ([]Notification, []string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]Notification(nil), d.posted...), append([]string(nil), d.removed...)
 }
 
 func (d *recordingDelegate) requestCount() int {

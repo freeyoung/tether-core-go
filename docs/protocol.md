@@ -8,3 +8,4 @@
 - Redial a computer after a drop. Try all of its addresses, the last one that worked first. Skip an address that another connected computer holds (a dual-boot laptop).
 - Close all sessions on quit: `tetherd` before 0.2.36 has no keepalive.
 - The iPhone app sends no `file_status` and keeps a received file in memory, so send it at most 512 MiB.
+- An Android phone sends its notifications only to peers that announce `notifications` in hello: `notification_posted` with `notification_id`, `app`, `app_name`, `title`, `content` and `time` (milliseconds since 1970), and `notification_removed` with `notification_id`. A notification with the same ID replaces the earlier one. Computers do not forward notifications to each other.

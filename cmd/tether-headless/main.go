@@ -3,7 +3,7 @@
 // debug the engine, or as one more computer on a test machine.
 //
 //	tether-headless --dir <support dir> [--port 5134] [--name NAME]
-//	                [--downloads DIR] [--approve]
+//	                [--downloads DIR] [--approve] [--notifications]
 //
 // Commands, one per line:
 //
@@ -11,6 +11,9 @@
 //	copy <text>             the user copies text
 //	copypng <path>          the user copies the PNG in <path>
 //	send <fingerprint> <path>
+//	notify <json>           post a phone notification, such as
+//	                        {"ID":"1","AppName":"Chat","Title":"Alice","Text":"hi"}
+//	unnotify <id>           remove it
 //	peers                   print the paired peers
 //	quit
 package main
@@ -112,12 +115,20 @@ func (e *events) PeerOutdated(name, version string) {
 	emit(map[string]any{"event": "peer_outdated", "name": name, "version": version})
 }
 
+func (e *events) NotificationPosted(n core.Notification) {
+	emit(map[string]any{"event": "notification_posted", "notification": n})
+}
+func (e *events) NotificationRemoved(fp, id string) {
+	emit(map[string]any{"event": "notification_removed", "peer": fp, "id": id})
+}
+
 func main() {
 	dir := flag.String("dir", "", "support directory (required)")
 	port := flag.Int("port", core.DefaultPort, "port")
 	name := flag.String("name", "", "device name")
 	downloads := flag.String("downloads", "", "downloads directory")
 	approve := flag.Bool("approve", false, "approve every pairing request")
+	notifications := flag.Bool("notifications", false, "show the notifications of phones")
 	flag.Parse()
 	if *dir == "" {
 		fmt.Fprintln(os.Stderr, "--dir is required")
@@ -128,7 +139,7 @@ func main() {
 	}
 	clipboard := &memoryClipboard{}
 	engine, err := core.NewEngine(core.Config{
-		SupportDir: *dir, DownloadsDir: *downloads, DeviceName: *name, Port: *port,
+		SupportDir: *dir, DownloadsDir: *downloads, DeviceName: *name, Port: *port, ShowNotifications: *notifications,
 		Log: func(s string) { fmt.Fprintln(os.Stderr, s) },
 	}, clipboard, nil)
 	if err != nil {
@@ -165,6 +176,15 @@ func main() {
 		case "send":
 			fp, path, _ := strings.Cut(rest, " ")
 			engine.SendFiles([]string{path}, fp)
+		case "notify":
+			var n core.Notification
+			if err := json.Unmarshal([]byte(rest), &n); err != nil {
+				emit(map[string]any{"event": "failed", "message": err.Error()})
+				continue
+			}
+			engine.PostNotification(n)
+		case "unnotify":
+			engine.RemoveNotification(rest)
 		case "peers":
 			emit(map[string]any{"event": "peers", "peers": engine.SnapshotNow().Peers})
 		case "quit":

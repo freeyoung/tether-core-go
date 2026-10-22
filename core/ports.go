@@ -117,6 +117,11 @@ type Delegate interface {
 	// PeerOutdated: a paired peer with this engine runs a version older
 	// than MinPeerVersion, so its session was closed.
 	PeerOutdated(name, version string)
+	// NotificationPosted: a phone shows a notification, new or changed. Only
+	// with Config.ShowNotifications.
+	NotificationPosted(Notification)
+	// NotificationRemoved: the notification is gone from the phone.
+	NotificationRemoved(peerFingerprint, id string)
 }
 
 type PeerState struct {

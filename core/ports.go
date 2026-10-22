@@ -122,6 +122,13 @@ type Delegate interface {
 	NotificationPosted(Notification)
 	// NotificationRemoved: the notification is gone from the phone.
 	NotificationRemoved(peerFingerprint, id string)
+	// MessagesRequested: a computer asks for the messages of this phone from
+	// the date since on (milliseconds since 1970), the oldest first. Answer
+	// with Engine.SendMessages. Only with Config.ProvideMessages.
+	MessagesRequested(peerFingerprint string, since int64)
+	// MessagesAdded: the store has new messages from a phone. Only with
+	// Config.KeepMessages.
+	MessagesAdded(peerFingerprint string, added []SMS)
 }
 
 type PeerState struct {

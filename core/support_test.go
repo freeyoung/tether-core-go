@@ -67,7 +67,10 @@ type recordingDelegate struct {
 	outdated    []string
 	posted      []Notification
 	removed     []string
-	engine      *Engine
+	added       [][]SMS
+	// Answers MessagesRequested, when set.
+	onMessagesRequested func(fp string, since int64)
+	engine              *Engine
 }
 
 func (d *recordingDelegate) PairingRequested(r PairingRequest) {
@@ -117,6 +120,16 @@ func (d *recordingDelegate) NotificationRemoved(fp, id string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.removed = append(d.removed, id)
+}
+func (d *recordingDelegate) MessagesRequested(fp string, since int64) {
+	if d.onMessagesRequested != nil {
+		d.onMessagesRequested(fp, since)
+	}
+}
+func (d *recordingDelegate) MessagesAdded(fp string, added []SMS) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.added = append(d.added, added)
 }
 func (d *recordingDelegate) notifications() ([]Notification, []string) {
 	d.mu.Lock()

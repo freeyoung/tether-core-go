@@ -4,6 +4,11 @@
 //
 //	tether-headless --dir <support dir> [--port 5134] [--name NAME]
 //	                [--downloads DIR] [--approve] [--notifications]
+//	                [--keep-messages] [--sms FILE]
+//
+// --keep-messages keeps the text messages of phones, as Tether Desktop does.
+// --sms makes it a phone that gives the messages in FILE, a JSON array of
+// core.SMS, as Tether for Android does.
 //
 // Commands, one per line:
 //
@@ -14,6 +19,7 @@
 //	notify <json>           post a phone notification, such as
 //	                        {"ID":"1","AppName":"Chat","Title":"Alice","Text":"hi"}
 //	unnotify <id>           remove it
+//	smschanged              tell the computers that the messages changed
 //	peers                   print the paired peers
 //	quit
 package main
@@ -27,6 +33,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -83,6 +90,7 @@ func (c *memoryClipboard) userCopies(v core.Content) {
 type events struct {
 	engine  *core.Engine
 	approve bool
+	sms     []core.SMS
 }
 
 func (e *events) PairingRequested(r core.PairingRequest) {
@@ -122,6 +130,24 @@ func (e *events) NotificationRemoved(fp, id string) {
 	emit(map[string]any{"event": "notification_removed", "peer": fp, "id": id})
 }
 
+func (e *events) MessagesRequested(fp string, since int64) {
+	var list []core.SMS
+	for _, m := range e.sms {
+		if m.Date >= since {
+			list = append(list, m)
+		}
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].Date < list[j].Date })
+	more := len(list) > core.MessageBatchSize
+	if more {
+		list = list[:core.MessageBatchSize]
+	}
+	e.engine.SendMessages(fp, list, more)
+}
+func (e *events) MessagesAdded(fp string, added []core.SMS) {
+	emit(map[string]any{"event": "messages_added", "peer": fp, "count": len(added)})
+}
+
 func main() {
 	dir := flag.String("dir", "", "support directory (required)")
 	port := flag.Int("port", core.DefaultPort, "port")
@@ -129,6 +155,8 @@ func main() {
 	downloads := flag.String("downloads", "", "downloads directory")
 	approve := flag.Bool("approve", false, "approve every pairing request")
 	notifications := flag.Bool("notifications", false, "show the notifications of phones")
+	keepMessages := flag.Bool("keep-messages", false, "keep the text messages of phones")
+	smsFile := flag.String("sms", "", "give the text messages in this JSON file, as a phone")
 	flag.Parse()
 	if *dir == "" {
 		fmt.Fprintln(os.Stderr, "--dir is required")
@@ -137,16 +165,28 @@ func main() {
 	if *downloads == "" {
 		*downloads = filepath.Join(*dir, "downloads")
 	}
+	var sms []core.SMS
+	if *smsFile != "" {
+		data, err := os.ReadFile(*smsFile)
+		if err == nil {
+			err = json.Unmarshal(data, &sms)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+	}
 	clipboard := &memoryClipboard{}
 	engine, err := core.NewEngine(core.Config{
 		SupportDir: *dir, DownloadsDir: *downloads, DeviceName: *name, Port: *port, ShowNotifications: *notifications,
+		KeepMessages: *keepMessages, ProvideMessages: *smsFile != "",
 		Log: func(s string) { fmt.Fprintln(os.Stderr, s) },
 	}, clipboard, nil)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	engine.Delegate = &events{engine: engine, approve: *approve}
+	engine.Delegate = &events{engine: engine, approve: *approve, sms: sms}
 	engine.Start()
 	emit(map[string]any{"event": "ready", "fingerprint": engine.Identity.Fingerprint, "port": *port})
 
@@ -185,6 +225,8 @@ func main() {
 			engine.PostNotification(n)
 		case "unnotify":
 			engine.RemoveNotification(rest)
+		case "smschanged":
+			engine.MessagesChanged()
 		case "peers":
 			emit(map[string]any{"event": "peers", "peers": engine.SnapshotNow().Peers})
 		case "quit":

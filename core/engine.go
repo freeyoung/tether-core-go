@@ -36,8 +36,13 @@ type Config struct {
 	// ShowNotifications: the app shows the notifications of Android phones.
 	// The engine announces it in hello, and only then do phones send them.
 	ShowNotifications bool
-	Protector         SecretProtector
-	MarkDownloaded    func(path string)
+	// KeepMessages: the engine keeps the text messages of Android phones in
+	// messages.jsonl in SupportDir (a computer). ProvideMessages: the app
+	// gives this phone's messages (Tether for Android). See messages.go.
+	KeepMessages    bool
+	ProvideMessages bool
+	Protector       SecretProtector
+	MarkDownloaded  func(path string)
 	// Never given clipboard or file content.
 	Log func(string)
 }
@@ -74,6 +79,9 @@ type session struct {
 	// Files go out one at a time; the rest wait here.
 	sendQueue []string
 	sending   *outgoingFile
+	// A message sync with this phone is under way; syncAgain: the phone
+	// sent sms_changed meanwhile.
+	syncing, syncAgain bool
 }
 
 func (s *session) fp() string { return s.conn.Fingerprint }
@@ -114,6 +122,7 @@ type Engine struct {
 	discovery  Discovery
 	knownHosts *KnownHosts
 	files      *FileReceiver
+	messages   *MessageStore
 	log        func(string)
 
 	listener      net.Listener
@@ -166,6 +175,11 @@ func NewEngine(cfg Config, clipboard Clipboard, discovery Discovery) (*Engine, e
 		discovered:    map[string]Discovered{},
 		redialDelay:   map[string]time.Duration{},
 		redialPending: map[string]bool{},
+	}
+	if cfg.KeepMessages {
+		if e.messages, err = OpenMessageStore(filepath.Join(cfg.SupportDir, "messages.jsonl")); err != nil {
+			return nil, err
+		}
 	}
 	e.queue = NewQueue(func(r any) { e.log(fmt.Sprintf("engine error: %v", r)) })
 	return e, nil
@@ -846,6 +860,7 @@ func (e *Engine) receivedPaired(m Message, s *session) {
 			s.helloSent = true
 			c.Send(Hello(e.helloFeatures()...), nil)
 		}
+		e.startMessageSync(s)
 	case "clipboard_set", "clipboard_updated":
 		// Phones never send clipboard_updated; tetherd does.
 		if m.Command == "clipboard_updated" && s.kind == Phone {
@@ -895,6 +910,8 @@ func (e *Engine) receivedPaired(m Message, s *session) {
 		}
 	case "notification_posted", "notification_removed":
 		e.receivedNotification(m, s)
+	case "sms_sync", "sms_batch", "sms_changed":
+		e.receivedMessages(m, s)
 	case "pair_request":
 		// Already pinned: the phone missed our pair_accepted.
 		c.Send(PairAccepted(), nil)

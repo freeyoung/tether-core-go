@@ -1,6 +1,6 @@
 # tether-core-go
 
-The engine of [Tether Desktop](https://github.com/freeyoung/tether-desktop) and [Tether for Android](https://github.com/freeyoung/tether-android): the computer side of the [Tether](https://github.com/zackb/tether) protocol, in Go. It does TLS, pairing, sessions, clipboard sync, files and notifications, and has no platform code, so its tests run on any OS.
+The engine of [Tether Desktop](https://github.com/freeyoung/tether-desktop) and [Tether for Android](https://github.com/freeyoung/tether-android): the computer side of the [Tether](https://github.com/zackb/tether) protocol, in Go. It does TLS, pairing, sessions, clipboard sync, files, and the notifications and text messages of Android phones, and has no platform code, so its tests run on any OS.
 
 The engine started in Tether Desktop. It is a module of its own now that more than one app uses it.
 
@@ -18,7 +18,7 @@ The app gives the engine three things, all in `core/ports.go`:
 
 - `Clipboard`: the system clipboard.
 - `Discovery`: DNS-SD, to publish `_tether._tcp` and find the other devices. `Browser` in `core/mdns.go` finds them on any OS.
-- `Delegate`: the user interface, for pairing prompts, files, links and the notifications of Android phones.
+- `Delegate`: the user interface, for pairing prompts, files, links, and the notifications and text messages of Android phones.
 
 The engine names its own version in hello: the version of this module in the build of the app, from the build information (`core.EngineVersion()`). `core.MinPeerVersion` is the oldest engine version that it syncs with. A release of the engine raises it when older engines must no longer sync, for example after a security fix. The app sets neither: its own version is for its own user interface and updates.
 

@@ -71,6 +71,12 @@ func (e *Engine) helloFeatures() []string {
 	if e.Config.ShowNotifications {
 		list = append(list, NotificationsFeature)
 	}
+	if e.Config.KeepMessages {
+		list = append(list, MessagesFeature)
+	}
+	if e.Config.ProvideMessages {
+		list = append(list, MessageSourceFeature)
+	}
 	return append(list, versionFeature+EngineVersion())
 }
 

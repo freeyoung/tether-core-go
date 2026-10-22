@@ -34,6 +34,10 @@ type Message struct {
 	AppName        string `json:"app_name,omitempty"`
 	Title          string `json:"title,omitempty"`
 	Time           *int64 `json:"time,omitempty"`
+	// sms_sync, sms_batch and sms_changed.
+	Since    *int64 `json:"since,omitempty"`
+	Messages []SMS  `json:"messages,omitempty"`
+	More     bool   `json:"more,omitempty"`
 }
 
 func (m Message) content() string {

@@ -283,7 +283,9 @@ func pairComputers(t *testing.T, a, b *testNode) {
 	t.Helper()
 	a.engine.PairWithComputer("127.0.0.1", b.port)
 	if !eventually(5*time.Second, func() bool { return a.delegate.has("accepted") }) {
-		t.Fatal("pairing did not finish")
+		a.delegate.mu.Lock()
+		defer a.delegate.mu.Unlock()
+		t.Fatalf("pairing did not finish: outbound %+v, requests at the other side %d", a.delegate.outbound, b.delegate.requestCount())
 	}
 	if !eventually(5*time.Second, func() bool { return a.connectedTo(b) && b.connectedTo(a) }) {
 		t.Fatal("no session after pairing")

@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -188,7 +189,23 @@ func newNode(t *testing.T, name string, configure ...func(*Config)) *testNode {
 	t.Helper()
 	root := t.TempDir()
 	port := int(nextPort.Add(1))
-	cfg := Config{SupportDir: filepath.Join(root, "support"), DownloadsDir: filepath.Join(root, "downloads"), DeviceName: name, Port: port}
+	// The engine's log, printed if the test fails: a failed listen or dial
+	// shows only there.
+	var logMu sync.Mutex
+	var logLines []string
+	cfg := Config{SupportDir: filepath.Join(root, "support"), DownloadsDir: filepath.Join(root, "downloads"), DeviceName: name, Port: port,
+		Log: func(s string) {
+			logMu.Lock()
+			logLines = append(logLines, time.Now().Format("15:04:05.000")+" "+s)
+			logMu.Unlock()
+		}}
+	t.Cleanup(func() {
+		if t.Failed() {
+			logMu.Lock()
+			defer logMu.Unlock()
+			t.Logf("log of %s (port %d):\n%s", name, port, strings.Join(logLines, "\n"))
+		}
+	})
 	for _, f := range configure {
 		f(&cfg)
 	}
